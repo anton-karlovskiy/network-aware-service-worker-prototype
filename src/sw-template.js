@@ -48,47 +48,87 @@ if ('function' === typeof importScripts) {
 }
 
 // ray test touch <
-// workbox.routing.registerRoute(
-//   new RegExp('/cdn.glitch.com/'),
-//   new workbox.strategies.CacheFirst()
-// );
+// TODO: we might apply algorithm to determine in what order to select cached ECT resource e.g image quality high to low order
+const ECT_RESOURCE_URLS = [
+  'https://cdn.glitch.com/8d7fb7f0-a9be-4a8c-96c7-8af286af487e%2Fmax-res.jpg?v=1562842587982',
+  'https://cdn.glitch.com/8d7fb7f0-a9be-4a8c-96c7-8af286af487e%2Fmedium-res.jpg?v=1562842587169',
+  // 'https://cdn.glitch.com/8d7fb7f0-a9be-4a8c-96c7-8af286af487e%2Fmin-res.jpg?v=1562842586912',
+  'https://cdn.glitch.com/8d7fb7f0-a9be-4a8c-96c7-8af286af487e%2Fmin-res.jpg?v=1562842586912'
+];
 
-// workbox.routing.registerRoute(
-//   new RegExp('/cdn.glitch.com/'),
-//   workbox.strategies.CacheFirst({
-//     cacheName: 'abc',
-//     plugins: [
-//       new workbox.expiration.Plugin({
-//         maxEntries: 50
-//       })
-//     ]
-// }));
+const CACHE_VERSION = 6;
 
-const CACHE_DYNAMIC_NAME = 'dynamic-v4';
+// Shorthand identifier mapped to specific versioned cache.
+const CURRENT_CACHES = {
+  DYNAMIC_NAME: 'ect-dynamic-v' + CACHE_VERSION
+};
+
+// self.addEventListener('activate', function(event) {
+//   const expectedCacheNames = Object.values(CURRENT_CACHES);
+
+//   // Active worker won't be treated as activated until promise
+//   // resolves successfully.
+//   event.waitUntil(
+//     caches.keys().then(function(cacheNames) {
+//       return Promise.all(
+//         cacheNames.map(function(cacheName) {
+//           if (!expectedCacheNames.includes(cacheName)) {
+//             console.log('Deleting out of date cache:', cacheName);
+            
+//             return caches.delete(cacheName);
+//           }
+//         })
+//       );
+//     })
+//   );
+// });
+
+// TODO: inspired by https://stackoverflow.com/questions/34640286/how-do-i-copy-a-request-object-with-a-different-url
+// above approach is more correct in theory but not working as expected so simulated as following
+const getCreatedRequest = (url, request) => {
+  const newRequest = new Request(url, {
+    destination: request.destination,
+    method: request.method,
+    headers: request.headers,
+    referrer: request.referrer,
+    referrerPolicy: request.referrerPolicy,
+    mode: request.mode,
+    credentials: request.credentials,
+    cache: request.cache,
+    redirect: request.redirect,
+    integrity: request.integrity,
+  });
+  return newRequest;
+};
+
+// TODO: similar to stale-while-revalidate strategy
 self.addEventListener('fetch', function(event) {
-  const url = 'https://cdn.glitch.com/';
-  if (event.request.url.indexOf(url) > -1) {
-    console.log('ray : ***** cdn.glitch.com asset detect');
+  if (ECT_RESOURCE_URLS.includes(event.request.url)) {
+    console.log('ray : [sw fetch-event-listener] requesting for ECT resource event.request.url => ', event.request.url);
     event.respondWith(
-      caches.match(event.request)
-        .then(function (response) {
+      caches.open(CURRENT_CACHES.DYNAMIC_NAME).then(function(cache) {
+        return cache.match(event.request).then(async function(response) {
           if (response) {
-            console.log('ray : ***** cache response');
+            console.log('ray : [sw fetch-event-listener] returning match-cached response');
             return response;
           } else {
-            return fetch(event.request)
-              .then(function (res) {
-                console.log('ray : ***** fetch response');
-                return caches.open(CACHE_DYNAMIC_NAME)
-                  .then(function (cache) {
-                    // trimCache(CACHE_DYNAMIC_NAME, 3);
-                    console.log('ray : ***** fetch then cache');
-                    cache.put(event.request.url, res.clone());
-                    return res;
-                  });
-              });
+            for (const ectResourceURL of ECT_RESOURCE_URLS) {
+              const createdRequest = getCreatedRequest(ectResourceURL, event.request);
+              const anyCachedResponse = await cache.match(createdRequest);
+              if (anyCachedResponse) {
+                console.log('ray : [sw fetch-event-listener] returning any cached response');
+                return anyCachedResponse;
+              }
+            }
+
+            console.log('ray : [sw fetch-event-listener] returning fetched response');
+            return fetch(event.request).then(function(networkResponse) {
+              cache.put(event.request, networkResponse.clone());
+              return networkResponse;
+            });
           }
-        })
+        });
+      })
     );
   }
 });
