@@ -54,35 +54,21 @@ const ECT_RESOURCE_URLS = [
   'https://cdn.glitch.com/8d7fb7f0-a9be-4a8c-96c7-8af286af487e%2Fmin-res.jpg?v=1562842586912'
 ];
 
-const CACHE_VERSION = 8;
+const CACHE_VERSION = 1;
 
 // Shorthand identifier mapped to specific versioned cache.
 const CURRENT_CACHES = {
   DYNAMIC_NAME: 'ect-dynamic-v' + CACHE_VERSION
 };
 
-// self.addEventListener('activate', function(event) {
-//   const expectedCacheNames = Object.values(CURRENT_CACHES);
-
-//   // Active worker won't be treated as activated until promise
-//   // resolves successfully.
-//   event.waitUntil(
-//     caches.keys().then(function(cacheNames) {
-//       return Promise.all(
-//         cacheNames.map(function(cacheName) {
-//           if (!expectedCacheNames.includes(cacheName)) {
-//             console.log('Deleting out of date cache:', cacheName);
-            
-//             return caches.delete(cacheName);
-//           }
-//         })
-//       );
-//     })
-//   );
-//   // ray test touch <
-//   return self.clients.claim();
-//   // ray test touch >
-// });
+const cacheName = CURRENT_CACHES.DYNAMIC_NAME;
+const expirationManager = new workbox.expiration.CacheExpiration(
+  cacheName,
+  {
+    maxAgeSeconds: 24 * 60 * 60,
+    maxEntries: 5,
+  }
+);
 
 // TODO: inspired by https://stackoverflow.com/questions/34640286/how-do-i-copy-a-request-object-with-a-different-url
 // above approach is more correct in theory but not working as expected so simulated as following
@@ -102,38 +88,38 @@ const getCreatedRequest = (url, request) => {
   return newRequest;
 };
 
-// TODO: similar to stale-while-revalidate strategy but different to large extend
-self.addEventListener('fetch', function(event) {
-  if (ECT_RESOURCE_URLS.includes(event.request.url)) {
-    console.log('ray : [sw fetch-event-listener] requesting for ECT resource event.request.url => ', event.request.url);
-    event.respondWith(
-      caches.open(CURRENT_CACHES.DYNAMIC_NAME).then(function(cache) {
-        return cache.match(event.request).then(async function(response) {
-          if (response) {
-            console.log('ray : [sw fetch-event-listener] returning match-cached response');
-            return response;
-          } else {
-            for (const ectResourceURL of ECT_RESOURCE_URLS) {
-              const createdRequest = getCreatedRequest(ectResourceURL, event.request);
-              const anyCachedResponse = await cache.match(createdRequest);
-              // TODO: we might apply some algorithm to picking up cached ECT resource e.g in high to low of image quality order
-              if (anyCachedResponse) {
-                console.log('ray : [sw fetch-event-listener] returning any cached response');
-                return anyCachedResponse;
-              }
-            }
+const matchFunction = ({url, event}) => {
+  return ECT_RESOURCE_URLS.includes(event.request.url);
+};
 
-            console.log('ray : [sw fetch-event-listener] returning fetched response');
-            return fetch(event.request).then(function(networkResponse) {
-              // ray test touch <
-              // trimCache(CURRENT_CACHES.DYNAMIC_NAME, 5);
-              // ray test touch >
-              cache.put(event.request, networkResponse.clone());
-              return networkResponse;
-            });
-          }
-        });
-      })
-    );
+const handler = async ({url, event}) => {
+  console.log('[sw handler] requesting for ECT resource event.request.url => ', event.request.url);
+  const cache = await caches.open(CURRENT_CACHES.DYNAMIC_NAME);
+  const response = await cache.match(event.request);
+  if (response) {
+    console.log('[sw handler] returning match-cached response');
+    return response;
+  } else {
+    for (const ectResourceURL of ECT_RESOURCE_URLS) {
+      const createdRequest = getCreatedRequest(ectResourceURL, event.request);
+      const anyCachedResponse = await cache.match(createdRequest);
+      // TODO: we might apply some algorithm to picking up cached ECT resource e.g in high to low of image quality order
+      if (anyCachedResponse) {
+        console.log('[sw handler] returning any cached response');
+        return anyCachedResponse;
+      }
+    }
+
+    console.log('[sw handler] returning fetched response');
+    const networkResponse = await fetch(event.request);
+
+    cache.put(event.request, networkResponse.clone());
+    await expirationManager.updateTimestamp(event.request.url);
+    return networkResponse;
   }
-});
+};
+
+workbox.routing.registerRoute(
+  matchFunction,
+  handler
+);
