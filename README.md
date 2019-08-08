@@ -10,3 +10,5 @@ npm install
 npm start
 npm run build
 ```
+## Deployment
+[Here](https://network-aware-service-worker.firebaseapp.com/)

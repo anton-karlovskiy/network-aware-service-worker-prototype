@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "staging": "network-aware-service-worker",
+    "default": "network-aware-service-worker",
+    "service-worker": "network-aware-service-worker",
+    "network-aware-service-worker": "network-aware-service-worker"
+  }
+}
