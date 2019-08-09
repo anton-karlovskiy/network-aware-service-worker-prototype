@@ -47,79 +47,26 @@ if ('function' === typeof importScripts) {
   }
 }
 
-const ECT_RESOURCE_URLS = [
-  'https://cdn.glitch.com/8d7fb7f0-a9be-4a8c-96c7-8af286af487e%2Fmax-res.jpg?v=1562842587982',
-  'https://cdn.glitch.com/8d7fb7f0-a9be-4a8c-96c7-8af286af487e%2Fmedium-res.jpg?v=1562842587169',
-  // 'https://cdn.glitch.com/8d7fb7f0-a9be-4a8c-96c7-8af286af487e%2Fmin-res.jpg?v=1562842586912',
-  'https://cdn.glitch.com/8d7fb7f0-a9be-4a8c-96c7-8af286af487e%2Fmin-res.jpg?v=1562842586912'
-];
-
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 6;
 
 // Shorthand identifier mapped to specific versioned cache.
 const CURRENT_CACHES = {
   DYNAMIC_NAME: 'ect-dynamic-v' + CACHE_VERSION
 };
 
-const cacheName = CURRENT_CACHES.DYNAMIC_NAME;
-const expirationManager = new workbox.expiration.CacheExpiration(
-  cacheName,
-  {
-    maxAgeSeconds: 24 * 60 * 60,
-    maxEntries: 5,
-  }
-);
-
-// TODO: inspired by https://stackoverflow.com/questions/34640286/how-do-i-copy-a-request-object-with-a-different-url
-// above approach is more correct in theory but not working as expected so simulated as following
-const getCreatedRequest = (url, request) => {
-  const newRequest = new Request(url, {
-    destination: request.destination,
-    method: request.method,
-    headers: request.headers,
-    referrer: request.referrer,
-    referrerPolicy: request.referrerPolicy,
-    mode: request.mode,
-    credentials: request.credentials,
-    cache: request.cache,
-    redirect: request.redirect,
-    integrity: request.integrity,
-  });
-  return newRequest;
-};
-
 const matchFunction = ({url, event}) => {
-  return ECT_RESOURCE_URLS.includes(event.request.url);
-};
-
-const handler = async ({url, event}) => {
-  console.log('[sw handler] requesting for ECT resource event.request.url => ', event.request.url);
-  const cache = await caches.open(CURRENT_CACHES.DYNAMIC_NAME);
-  const response = await cache.match(event.request);
-  if (response) {
-    console.log('[sw handler] returning match-cached response');
-    return response;
-  } else {
-    for (const ectResourceURL of ECT_RESOURCE_URLS) {
-      const createdRequest = getCreatedRequest(ectResourceURL, event.request);
-      const anyCachedResponse = await cache.match(createdRequest);
-      // TODO: we might apply some algorithm to picking up cached ECT resource e.g in high to low of image quality order
-      if (anyCachedResponse) {
-        console.log('[sw handler] returning any cached response');
-        return anyCachedResponse;
-      }
-    }
-
-    console.log('[sw handler] returning fetched response');
-    const networkResponse = await fetch(event.request);
-
-    cache.put(event.request, networkResponse.clone());
-    await expirationManager.updateTimestamp(event.request.url);
-    return networkResponse;
-  }
+  return new RegExp('max-res|medium-res|min-res|4g-video');
 };
 
 workbox.routing.registerRoute(
   matchFunction,
-  handler
+  new workbox.strategies.StaleWhileRevalidate({
+    cacheName: CURRENT_CACHES.DYNAMIC_NAME,
+    plugins: [
+      new workbox.expiration.Plugin({
+        maxEntries: 50,
+        maxAgeSeconds: 24 * 60 * 60, // 1 Day
+      }),
+    ],
+  })
 );
