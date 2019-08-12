@@ -1,5 +1,5 @@
 {
-  "name": "cra-network-aware-loading",
+  "name": "network-aware-service-worker",
   "version": "0.1.0",
   "homepage": ".",
   "private": true,
