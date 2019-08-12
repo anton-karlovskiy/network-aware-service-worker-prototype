@@ -7,7 +7,7 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 ```
 git clone https://github.com/anton-karlovskiy/network-aware-service-worker.git
 npm install
-npm start
+npm run dev
 npm run build
 ```
 ## Deployment
