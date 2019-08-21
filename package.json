@@ -10,8 +10,7 @@
     "react-scripts": "3.0.1"
   },
   "scripts": {
-    "dev": "react-scripts start",
-    "start": "node server.js",
+    "start": "react-scripts start",
     "build-sw": "node ./src/sw-build.js",
     "clean-cra-sw": "rm -f build/precache-manifest.*.js && rm -f build/service-worker.js",
     "build": "react-scripts build && npm run build-sw && npm run clean-cra-sw",
