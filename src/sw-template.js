@@ -47,7 +47,7 @@ if ('function' === typeof importScripts) {
   }
 }
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 // Shorthand identifier mapped to specific versioned cache.
 const CURRENT_CACHES = {
