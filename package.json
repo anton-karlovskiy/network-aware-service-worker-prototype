@@ -15,6 +15,7 @@
     "clean-cra-sw": "rm -f build/precache-manifest.*.js && rm -f build/service-worker.js",
     "build": "react-scripts build && npm run build-sw && npm run clean-cra-sw",
     "test": "react-scripts test",
+    "deploy": "firebase deploy",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
